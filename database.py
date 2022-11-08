@@ -1,6 +1,7 @@
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
+# It opens new database if not exists
 def open_database():
     conn = psycopg2.connect(
     user='postgres',
@@ -9,16 +10,16 @@ def open_database():
     port= '5432'
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-    #cursor          = conn.cursor()
-    # name_Database   = "Projfds"
-    # sqlCreateDatabase = "CREATE DATABASE "+name_Database+";"
-    # myNewDB="poiuy"
-    # sqlCreateDatabase =f"SELECT 'CREATE DATABASE {myNewDB}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{myNewDB}')"
-    # cursor.execute(sqlCreateDatabase)
-    #conn.commit()
+    cursor          = conn.cursor()
+    name_Database   = "Fastchat"
+    sqlCreateDatabase = "CREATE DATABASE "+name_Database+";"
+    myNewDB="poiuy"
+    sqlCreateDatabase =f"SELECT 'CREATE DATABASE {myNewDB}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{myNewDB}')"
+    cursor.execute(sqlCreateDatabase)
+    conn.commit()
     print("Database created successfully........")
-####################################
 
+# Sign in and Sign Up
 def sign_in_up(name,passw):
     conn = psycopg2.connect(
     user='postgres',
@@ -28,60 +29,199 @@ def sign_in_up(name,passw):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    #name_Database   = "Projfds"
-    #sqlCreateDatabase = "CREATE DATABASE "+name_Database+";"
-    #myNewDB="poiuy"
-    #sqlCreateDatabase =f"SELECT 'CREATE DATABASE {myNewDB}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{myNewDB}')"
-    #cursor.execute(sqlCreateDatabase)
-    #conn.commit()
-    #print("Database created successfully........")
-
-
-    
-    if cursor != None:
-        sql = '''CREATE TABLE IF NOT EXISTS RTYuyfu(
+    sql = '''CREATE TABLE IF NOT EXISTS Clients(
    NAME TEXT NOT NULL PRIMARY KEY,
-   COUNTRY TEXT NOT NULL,
-   AGE FLOAT,
-   SALARY FLOAT    
-)'''
-        cursor.execute(sql)
+   PASSWORD TEXT NOT NULL,
+   IS_ONLINE FLOAT,
+   EXTRA FLOAT    
+    )'''
+    cursor.execute(sql)
     # check whether name is already present or not
-        sql134 = 'SELECT * FROM RTYuyfu WHERE name=%s;'
-        cursor.execute(sql134,[name])
-        result = cursor.fetchone()
-        print(result) # Wrote for our conven
-        age=0
-        number =100000000
-        if result!=None:
-            if passw==result[1]:
-                return 1
-            else:
-                return -1
+    sql134 = 'SELECT * FROM Clients WHERE name=%s;'
+    cursor.execute(sql134,[name])
+    result = cursor.fetchone()
+        #print(result) # Wrote for our conven
+    is_online=1
+    number =100000000
+    if result!=None:
+        if passw==result[1]:
+            return 1
         else:
-            insert_stmt2 = f"""INSERT INTO RTYuyfu (NAME, COUNTRY,\
-AGE, SALARY) VALUES ('{name}', '{passw}', {age},{number}) ON CONFLICT (NAME) DO NOTHING;"""
-            cursor.execute(insert_stmt2)
-            conn.commit()
-            return 0
-        """if result!=None:
-        print('Name already exists')
-        print('Enter 1 for password change else 0')
-        a=input(int)
-        if a==1:
-   # To update password
-            print("Enter old password")
-            old_pass=input(str)
-            if old_pass==result[1]:
-                print("Enter new password")
-                new_pass=input(str)
-                insert_stmt1 = "INSERT INTO RTYuyfu (NAME, COUNTRY,\
-AGE, SALARY) VALUES (%s, %s, %s, %s) ON CONFLICT (NAME) DO UPDATE SET country = Excluded.country;"
-                data = [(name, new_pass, age,number)]
-                cursor.executemany(insert_stmt1, data)"""
-        
-        insert_stmt2 = f"""INSERT INTO RTYuyfu (NAME, COUNTRY,\
-AGE, SALARY) VALUES ('{name}', '{passw}', {age},{number}) ON CONFLICT (NAME) DO NOTHING;"""
-#"crypt({passw}, gen_salt('bf'))"  ::: To be used later
+            return -1
+    else:
+        insert_stmt2 = f"""INSERT INTO Clients (NAME, PASSWORD,\
+IS_ONLINE, EXTRA) VALUES ('{name}', '{passw}', {is_online},{number}) ON CONFLICT (NAME) DO NOTHING;"""
         cursor.execute(insert_stmt2)
         conn.commit()
+        return 0
+
+# Group Creation
+def group(groupname,admin):
+    conn = psycopg2.connect(
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
+   GRPNAME TEXT NOT NULL,
+   ADMIN TEXT NOT NULL,
+   Participants TEXT NOT NULL,
+   time_stamp TIMESTAMP,
+   CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants)  
+   )'''
+    cursor.execute(sql)
+    conn.commit
+    insert_stmt1 = "INSERT INTO grp_modified (GRPNAME, ADMIN,Participants) VALUES (%s, %s,%s)ON CONFLICT (GRPNAME,ADMIN,Participants) DO NOTHING;"
+    data = [(groupname,admin,admin)]
+    cursor.executemany(insert_stmt1, data)
+
+
+# Add participants to the group
+def add_participants_to_grp(grpname,admin,new_participant):
+    conn = psycopg2.connect(
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+
+    sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}';"
+    cursor.execute(sql134)
+    result = cursor.fetchone()
+    if result==None:
+        return -1      # There is no group having group name as grpname type=int
+    elif result[1]!=admin:
+        return result[1]       # user is not admin type=str
+    sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}' AND Participants='{new_participant}';"
+    cursor.execute(sql134)
+    result = cursor.fetchone()
+    if result!=None:
+        return(1)       # new_participant already exists type=int
+    elif result==None:
+        insert_stmt1 = f"INSERT INTO grp_modified (GRPNAME, ADMIN,Participants) VALUES ('{grpname}', '{admin}','{new_participant}');"
+        cursor.execute(insert_stmt1)
+        conn.commit
+        return 2           # Done successfully type=int
+
+
+# Delete participants from the group
+def delete_participants_from_grp(grpname,admin,member):
+    conn = psycopg2.connect(
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+
+    sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}';"
+    cursor.execute(sql134)
+    result = cursor.fetchone()
+    if result==None:
+        return -1      # There is no group having group name as grpname type=int
+    elif result[1]!=admin:
+        return result[1]       # user is not admin type=str
+    sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}' AND Participants='{member}';"
+    cursor.execute(sql134)
+    result = cursor.fetchone()
+    if result==None:
+        return(2)       # No participant named member in the group
+    elif result!=None:
+        insert_stmt1 = f"DELETE FROM grp_modified WHERE Participants='{member}';"
+        cursor.execute(insert_stmt1)
+        conn.commit
+        return 1         # Deleted successfully   
+
+
+# When user becomes offline bool is_online becomes 0
+def exit_user(username):
+    conn = psycopg2.connect(
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    stmt = f"""UPDATE Clients SET IS_ONLINE=0 WHERE name='{username}';"""
+    cursor.execute(stmt)
+    conn.commit()
+
+# stores msg
+def msg_store(username,msg,is_image):
+    conn = psycopg2.connect(
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql = '''CREATE TABLE IF NOT EXISTS msg_stack(
+   TO_name TEXT NOT NULL,
+   MSG TEXT NOT NULL,
+   Is_image INT,
+   time_stamp TIMESTAMP,
+   CONSTRAINT pk_msg_stack PRIMARY KEY(TO_name,MSG,time_stamp)  
+   )'''
+    cursor.execute(sql)
+    conn.commit
+    from datetime import datetime  
+    timestamp = 1625309472.357246 
+    date_time = datetime.fromtimestamp(timestamp)
+    now  = datetime.now() 
+    str_date_time = date_time.strftime("%Y-%D-%M %H:%M:%S")
+    insert_stmt1 = "INSERT INTO msg_stack (TO_name,MSG,Is_image,time_stamp) VALUES ( %s,%s,%s,%s)ON CONFLICT (TO_name,MSG,time_stamp) DO NOTHING;"
+    data = [(username,msg,is_image,now)]
+    cursor.executemany(insert_stmt1, data)
+    conn.commit
+
+
+# delete msgs if user comes online after sending it to the user
+def msg_delete(username):
+    conn = psycopg2.connect(
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql = f"""SELECT * from msg_stack WHERE TO_name='{username}'"""
+    cursor.execute(sql)
+    result = cursor.fetchall()
+    sql = f"""DELETE from msg_stack WHERE TO_name='{username}'"""
+    cursor.execute(sql)
+    conn.commit
+    return result
+
+
+# deletion of msgs after 120 seconds
+def deletion_of_old_msgs():
+    conn = psycopg2.connect(
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql = f"""SELECT * from msg_stack"""
+    cursor.execute(sql)
+    result = cursor.fetchall()
+    for i in result:
+        print(i[3],type(i[3]))
+        from datetime import datetime     
+        now  = datetime.now() 
+        duration = now - i[3]  
+        duration_in_s = duration.total_seconds() 
+        print(duration_in_s)
+        if duration_in_s>120:
+            sql = f"""DELETE from msg_stack WHERE TO_name='{i[0]}' AND MSG='{i[1]}' """
+            cursor.execute(sql)
