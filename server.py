@@ -1,104 +1,215 @@
-# Python program to implement server side of chat room. 
-import socket 
-import select
-import sys 
-import os
-import psycopg2 as ps
-from _thread import *
- 
-"""The first argument AF_INET is the address domain of the 
-socket. This is used when we have an Internet Domain with 
-any two hosts The second argument is the type of socket. 
-SOCK_STREAM means that data or characters are read in 
-a continuous flow."""
+from email import message
+from re import I
+import threading
+import socket
+from database import *
+import rsa
+import cryptocode
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-# checks whether sufficient arguments have been provided
+ENCODING = 'utf-8'
+SERVER_ADDRESS = ('127.0.0.1', 15665)
 
-if len(sys.argv) != 3:
-	print ("Correct usage: script, IP address, port number")
-	exit() 
 
-# takes the first argument from command prompt as IP address 
-IP_address = str(sys.argv[1])
-# takes second argument from command prompt as port number 
-Port = int(sys.argv[2])
-""" 
-binds the server to an entered IP address and at the 
-specified port number. 
-The client must be aware of these parameters 
-"""
-server.bind((IP_address, Port))
-#listens for 100 active connections. This number can be increased as per convenience.
-server.listen(100) 
- 
+class Participant:
+	def __init__(self, username: str,password: str,client_socket: socket):
+		self.username = username
+		self.password=password
+		self.client_socket = client_socket
+		
 
-list_of_clients = [] 
-def clientthread(conn, addr):
-	# sends a message to the client whose user object is conn
-	conn.send("Welcome to this chatroom!".encode())
-	while True: 
-		try:
-			message = conn.recv(2048) 
-			if message:
-				"""prints the message and address of the 
-				user who just sent the message on the server 
-				terminal"""
-				print ("<" + addr[0] + "> " + message)
-				# Calls broadcast function to send message to all 
-				message_to_send = "<" + addr[0] + "> " + message
-				broadcast(message_to_send, conn)
-			else:
-				#message may have no content if the connection is broken, in this case we remove the connection
-				remove(conn)
-		except:
-			continue
 
-#Using the below function, we broadcast the message to all clients who's object is not the same as the one sending the message
+class group:
+	def __init__(self,admin,group_name):
+		self.members=[]
+		self.admins=[admin]
+		self.group_name=group_name
 
-def broadcast(message, connection, send_clients): 
-	for clients in send_clients:
-		if clients!=connection:
-			try:
-				clients.send(message.encode()) 
-			except:
-				clients.close()
-				remove(clients) 
- 
-#The following function simply removes the object from the list that was created at the beginning of the program
-def remove(connection): 
-	if connection in list_of_clients: 
-		list_of_clients.remove(connection)
 
-db=ps.connect("All_users.db")
-cursor=db.cursor()
-cursor.execute('''CREATE TABLE USER_IDS(id PRIMARY TEXT,PASSWORD TEXT);''')
+def send_to(participant_socket, message: str,username: str):
+	print("Sending message to "+username+" : "+message)
+	if message==None:
+		print("Message to be sent is None")
+	else:
+		participant_socket.send(message.encode(ENCODING))
 
-while True: 
-	# Accepts a connection request and stores two parameters, conn which is a socket object for that user, and addr which contains the IP address of the client that just connected
-	conn, addr = server.accept()
-	#Maintains a list of clients for ease of broadcasting a message to all available people in the chatroom
-	file1=open("1user.txt","r")
-	str1=file1.readline()
-	user=str1.split()[0]
-	PASSWORD=str1.split()[1]
-	os.remove("1user.txt")
-	cursor.execute('''select decrypt(PASSWORD,decode('PASSWORD','escape'::text),'aes'::text) from user_ids where id=?''',user)
-	found=False
-	for i in cursor.fetchall():
-		if i[0]==PASSWORD:
-			found=True
+
+def send(participant_name:str,message:str):
+	for i in participants:
+		if i.username==participant_name:
+			send_to(i,message)
+
+
+def receive_from(participant: Participant, encod_type:str =ENCODING, size: int = 1024):
+	if encod_type=="":
+		return participant.client_socket.recv(size).decode()
+	else:
+ 		return participant.client_socket.recv(size).decode(encod_type)
+
+
+def handle_command(participant, command):
+	print("Command by "+participant.username+": "+command)
+	if command=="/Send":
+		send_to(participant,'%DRT_MSG%')
+		username = receive_from(participant)
+		message=receive_from(participant)
+		send(username,participant.username+": "+message)
+	elif command == '/Exit':
+		send_to(participant, '%QUIT%')
+		participant.client_socket.close()
+	# admin commands
+	elif command=='/Creategrp':
+		send_to(participant, '%CREATEGROUP%')
+		k=receive_from(participant)
+		if k in list(map(lambda p: p.group_name, groups)):
+			send_to(participant, k+' already exists')
 		else:
-			#error
-	cursor.execute('''CREATE EXTENSION pgcrypto;''')
-	if !(found):
-		cursor.execute('''INSERT INTO USER_IDS(ID,PASSWORD) \ VALUES(?,?)''',str1.split(" ")[0],encrypt(PASSWORD,'PASSWORD','aes'))#crypt(str1.split[1],gen_salt("bf"))
-	
-	list_of_clients.append(conn)
-	print (addr[0] + " connected")
-	# creates and individual thread for every user that connects
-	start_new_thread(clientthread,(conn,addr))     
+			g=group(participant.username,k)
+			groups.append(g)
+			send_to(participant, 'Successfully created group '+k)
+	elif command=='/Addmember':
+		admin_name=participant.username
+		send_to(participant,'%ADDMEMBER%')
+		groupname=receive_from(participant)
+		membername=receive_from(participant)
+		a=add_member(groupname,membername,admin_name)
+		send_to(participant,a)
+	elif command=='/Sendgrp':
+		send_to(participant,'%SENDGRP%')
+		group_name=receive_from(participant)
+		message=receive_from(participant)
+		a=send_group(group_name,message,participant.username)
+		send_to(participant,a)
+	elif command == '/kick':
+		send_to(participant,"%REMOVE%")
+		user=receive_from(participant)
+		grp_name=receive_from(participant)
+		send_to(participant,remove_member(grp_name,user,participant.username))
+	else:
+		send_to(participant, '-- Invalid command')
 
-conn.close() 
-server.close()
+
+def handle(participant: Participant):
+	while True:
+		command = receive_from(participant)
+		if command.startswith('/'):
+			handle_command(participant, command)
+
+
+def send_group(group_name,message:str,participant_name: str):
+	Group=None
+	for i in groups:
+		if group_name==i.group_name:
+			Group=i
+			break
+	if Group==None:
+		return "You are not there in "+group_name
+	participant=None
+	for i in Group.members+Group.admins:
+		if i==participant_name:
+			participant=i
+	if participant==None:
+		return "You are not there in "+group_name
+	for i in participants:
+		found=False
+		if i.username in Group.members+Group.admins and i.username!=participant_name:
+			found=True
+		if found:
+			send_to(i,"["+group_name+"] "+participant_name+": "+message)
+	return "Sent"
+
+
+def add_member(group_name,participant_name: str,admin_name: str):
+	Admin=None
+	participant=None
+	for i in participants:
+		if i.username==participant_name:
+			participant=i
+		if i.username==admin_name:
+			Admin=i
+	if participant==None:
+		return "Participant doesn't exist at all"
+	if Admin==None:
+		return "You are not there at all"
+	Group=None
+	for i in groups:
+		if group_name==i.group_name:
+			Group=i
+			break
+	if Group==None:
+		return group_name+" doesn't exist"
+	admin_found=False
+	for i in Group.admins:
+		if i==Admin.username:
+			admin_found=True
+			break
+	if not admin_found:
+		return "You are not an admin in "+group_name
+	for i in Group.members:
+		if(i==participant.username):
+			return participant_name+" is already there in "+group_name
+	for i in Group.admins:
+		if(i==participant.username):
+			return participant_name+" is already there in "+group_name
+	Group.members.append(participant_name)
+	return "Successfully added "+participant_name+" to "+group_name
+
+
+def remove_member(group_name,participant_name: str,admin_name:str):
+	Group=None
+	for i in groups:
+		if i.group_name==group_name:
+			Group=i
+			break
+	if Group==None:
+		return group_name+" doesn't exist"
+	if admin_name not in Group.admins:
+		return "You are not an admin in "+group_name
+	if participant_name not in Group.members:
+		return "This participant is not there in "+group_name
+	Group.members.remove(participant_name)
+	return "Successfully removed "+participant_name+" from "+group_name
+
+
+def receive():
+	"""
+	Main loop, add new clients to the chat room
+	"""
+	while True:
+		client_socket, address = server.accept()
+		print("Connected with "+str(address))
+		client_socket.send('%USER%'.encode(ENCODING))
+		username = client_socket.recv(1024).decode(ENCODING)
+		client_socket.send('%PASS%'.encode(ENCODING))
+		password = client_socket.recv(1024).decode(ENCODING)
+		###############
+		a=sign_in_up(username,password)
+		while True:
+			if a==1:
+				print(username+" joined back")
+				send_to(client_socket,'%CONNECT%',username)
+				thread = threading.Thread(target=handle, args=(participant,))
+				thread.start()
+				break
+			elif a==0:
+				print("New participant: "+username)
+				send_to(client_socket, '-- Connected to server!',username)
+				send_to(client_socket,'%CONNECT%')
+				thread = threading.Thread(target=handle, args=(new_participant,))
+				thread.start()
+				break
+			elif a==-1:
+				print('Connection attempt with existing username: '+username)
+				client_socket.send('%TRYAGAIN%'.encode(ENCODING))
+				password2 = client_socket.recv(1024).decode(ENCODING)
+				a=sign_in_up(username,password2)
+
+
+if __name__ == '__main__':
+	server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server.bind(SERVER_ADDRESS)
+	server.listen()
+	participants = []
+	groups=[]
+	print('Server is listening... ')
+	open_database()
+	receive()
