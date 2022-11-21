@@ -15,15 +15,14 @@ def open_database():
     query=f"""SELECT datname FROM pg_database WHERE datname='{name_Database}';"""
     cursor.execute(query)
     result=cursor.fetchall()
-    print(result)
     if result==[]:
         sqlCreateDatabase = f"""CREATE DATABASE {name_Database};"""
         cursor.execute(sqlCreateDatabase)
     conn.commit()
-    print("Database created successfully........")
+    print("Database initiated........")
 
 # Sign in and Sign Up
-def sign_in_up(name,passw):
+def sign_in_up(name,passw,publicKey):
     conn = psycopg2.connect(
     database="fastchat",
     user='postgres',
@@ -37,6 +36,7 @@ def sign_in_up(name,passw):
    NAME TEXT NOT NULL PRIMARY KEY,
    PASSWORD TEXT NOT NULL,
    IS_ONLINE FLOAT,
+   PUBLIC_KEY TEXT NOT NULL,
    EXTRA FLOAT    
     )'''
     cursor.execute(sql)
@@ -54,13 +54,13 @@ def sign_in_up(name,passw):
             return -1
     else:
         insert_stmt2 = f"""INSERT INTO Clients (NAME, PASSWORD,\
-IS_ONLINE, EXTRA) VALUES ('{name}', '{passw}', {is_online},{number}) ON CONFLICT (NAME) DO NOTHING;"""
+IS_ONLINE, PUBLIC_KEY, EXTRA) VALUES ('{name}', '{passw}', {is_online},'{publicKey}',{number}) ON CONFLICT (NAME) DO NOTHING;"""
         cursor.execute(insert_stmt2)
         conn.commit()
         return 0
 
-# Group Creation
-def group(groupname,admin):
+# Get public key (It returns public key of given member)
+def get_public_key(name):
     conn = psycopg2.connect(
     database="fastchat",
     user='postgres',
@@ -70,20 +70,40 @@ def group(groupname,admin):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql=f'''SELECT grpname FROM grp_modified WHERE GRPNAME='{groupname}';'''
-    cursor.execute(sql)
-    result=cursor.fetchall()
-    if result==None:
-        sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
+    sql134 = 'SELECT * FROM Clients WHERE name=%s;'
+    cursor.execute(sql134,[name])
+    result = cursor.fetchone()
+    if result!=None:
+        return result[3]        # Return public key
+    else:
+        return -1               # If name not exists return -1
+
+# Group Creation
+def group(groupname,admin,publickey):
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
         GRPNAME TEXT NOT NULL,
         ADMIN TEXT NOT NULL,
         Participants TEXT NOT NULL,
-        CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants)  
+        PublicKey TEXT NOT NULL,
+        CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants,PublicKey)  
         )'''
-        cursor.execute(sql)
-        conn.commit
-        insert_stmt1 = "INSERT INTO grp_modified (GRPNAME, ADMIN,Participants) VALUES (%s, %s,%s)ON CONFLICT (GRPNAME,ADMIN,Participants) DO NOTHING;"
-        data = [(groupname,admin,admin)]
+    cursor.execute(sql)
+    conn.commit
+    sql=f'''SELECT grpname FROM grp_modified WHERE GRPNAME='{groupname}';'''
+    cursor.execute(sql)
+    result=cursor.fetchall()
+    if result==[]:
+        insert_stmt1 = "INSERT INTO grp_modified (GRPNAME, ADMIN,Participants, PublicKey) VALUES (%s, %s,%s,%s)ON CONFLICT (GRPNAME,ADMIN,Participants, PublicKey) DO NOTHING;"
+        data = [(groupname,admin,admin,publickey)]
         cursor.executemany(insert_stmt1, data)
         return 1
     else:
@@ -91,7 +111,7 @@ def group(groupname,admin):
 
 
 # Add participants to the group
-def add_participants_to_grp(grpname,admin,new_participant):
+def add_participants_to_grp(grpname,admin,new_participant,publickey):
     conn = psycopg2.connect(
     database="fastchat",
     user='postgres',
@@ -115,7 +135,7 @@ def add_participants_to_grp(grpname,admin,new_participant):
     if result!=None:
         return(1)       # new_participant already exists type=int
     elif result==None:
-        insert_stmt1 = f"INSERT INTO grp_modified (GRPNAME, ADMIN,Participants) VALUES ('{grpname}', '{admin}','{new_participant}');"
+        insert_stmt1 = f"INSERT INTO grp_modified (GRPNAME, ADMIN,Participants, PublicKey) VALUES ('{grpname}', '{admin}','{new_participant}','{publickey}');"
         cursor.execute(insert_stmt1)
         conn.commit
         return 2           # Done successfully type=int
@@ -150,6 +170,30 @@ def delete_participants_from_grp(grpname,admin,member):
         cursor.execute(insert_stmt1)
         conn.commit
         return 1         # Deleted successfully   
+
+# Delete group
+def delete_group(grpname,admin):
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}';"
+    cursor.execute(sql134)
+    result = cursor.fetchone()
+    if result==None:
+        return -1      # There is no group having group name as grpname type=int
+    elif result[1]!=admin:
+        return result[1]       # user is not admin type=str
+    elif result!=None:
+        insert_stmt1 = f"DELETE FROM grp_modified WHERE GRPNAME='{grpname}';"
+        cursor.execute(insert_stmt1)
+        conn.commit
+        return 1         # Deleted successfully  
 
 
 # When user becomes offline bool is_online becomes 0
@@ -228,7 +272,7 @@ def all_members(groupname):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql=f'''SELECT Participants FROM grp_modified WHERE GRPNAME='{groupname}';'''
+    sql=f'''SELECT Participants AND PublicKey FROM grp_modified WHERE GRPNAME='{groupname}';'''
     cursor.execute(sql)
     result=cursor.fetchall()
     if result==None:
