@@ -22,7 +22,7 @@ def open_database():
     print("Database initiated........")
 
 # Sign in and Sign Up
-def sign_in_up(name,passw,publicKey):
+def sign_in_up(name,passw):
     conn = psycopg2.connect(
     database="fastchat",
     user='postgres',
@@ -36,7 +36,7 @@ def sign_in_up(name,passw,publicKey):
    NAME TEXT NOT NULL PRIMARY KEY,
    PASSWORD TEXT NOT NULL,
    IS_ONLINE FLOAT,
-   PUBLIC_KEY TEXT NOT NULL,
+   PUBLIC_KEY TEXT,
    EXTRA FLOAT    
     )'''
     cursor.execute(sql)
@@ -54,10 +54,25 @@ def sign_in_up(name,passw,publicKey):
             return -1
     else:
         insert_stmt2 = f"""INSERT INTO Clients (NAME, PASSWORD,\
-IS_ONLINE, PUBLIC_KEY, EXTRA) VALUES ('{name}', '{passw}', {is_online},'{publicKey}',{number}) ON CONFLICT (NAME) DO NOTHING;"""
+IS_ONLINE,  EXTRA) VALUES ('{name}', '{passw}', {is_online},{number}) ON CONFLICT (NAME) DO NOTHING;"""
         cursor.execute(insert_stmt2)
         conn.commit()
         return 0
+
+# Update public key
+def update_pubkey(name,publicKey):
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    insert_stmt2 = f"""UPDATE Clients SET PUBLIC_KEY='{publicKey}' WHERE name='{name}';"""
+    cursor.execute(insert_stmt2)
+    conn.commit()
 
 # Get public key (It returns public key of given member)
 def get_public_key(name):
