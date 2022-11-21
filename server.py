@@ -7,22 +7,13 @@ import rsa
 import cryptocode
 
 ENCODING = 'utf-8'
-SERVER_ADDRESS = ('127.0.0.1', 15665)
+SERVER_ADDRESS = ('localhost', 7889)
 
 
 class Participant:
-	def __init__(self, username: str,password: str,client_socket: socket):
+	def __init__(self, username: str,client_socket: socket):
 		self.username = username
-		self.password=password
 		self.client_socket = client_socket
-		
-
-
-class group:
-	def __init__(self,admin,group_name):
-		self.members=[]
-		self.admins=[admin]
-		self.group_name=group_name
 
 
 def send_to(participant_socket, message: str,username: str):
@@ -39,7 +30,7 @@ def send(participant_name:str,message:str):
 			send_to(i,message)
 
 
-def receive_from(participant: Participant, encod_type:str =ENCODING, size: int = 1024):
+def receive_from(participant, encod_type:str =ENCODING, size: int = 1024):
 	if encod_type=="":
 		return participant.client_socket.recv(size).decode()
 	else:
@@ -55,17 +46,17 @@ def handle_command(participant, command):
 		send(username,participant.username+": "+message)
 	elif command == '/Exit':
 		send_to(participant, '%QUIT%')
+		exit_user(participant.username)
 		participant.client_socket.close()
-	# admin commands
+	# Admin commands
 	elif command=='/Creategrp':
 		send_to(participant, '%CREATEGROUP%')
-		k=receive_from(participant)
-		if k in list(map(lambda p: p.group_name, groups)):
-			send_to(participant, k+' already exists')
+		grp_name=receive_from(participant)
+		a=group(grp_name,participant.username)
+		if a==1:
+			send_to(participant, 'Successfully created group '+grp_name)
 		else:
-			g=group(participant.username,k)
-			groups.append(g)
-			send_to(participant, 'Successfully created group '+k)
+			send_to(participant, grp_name+' already exists')
 	elif command=='/Addmember':
 		admin_name=participant.username
 		send_to(participant,'%ADDMEMBER%')
@@ -94,81 +85,43 @@ def handle(participant: Participant):
 		if command.startswith('/'):
 			handle_command(participant, command)
 
-
+#completed
 def send_group(group_name,message:str,participant_name: str):
-	Group=None
-	for i in groups:
-		if group_name==i.group_name:
-			Group=i
-			break
-	if Group==None:
-		return "You are not there in "+group_name
-	participant=None
-	for i in Group.members+Group.admins:
-		if i==participant_name:
-			participant=i
-	if participant==None:
+	participants=all_members(group_name)
+	if len(participants)==0:
 		return "You are not there in "+group_name
 	for i in participants:
-		found=False
-		if i.username in Group.members+Group.admins and i.username!=participant_name:
-			found=True
-		if found:
+		if i!=participant_name:
 			send_to(i,"["+group_name+"] "+participant_name+": "+message)
-	return "Sent"
+	return "Sent message in "+group_name
+#completed
 
-
+#completed
 def add_member(group_name,participant_name: str,admin_name: str):
-	Admin=None
-	participant=None
-	for i in participants:
-		if i.username==participant_name:
-			participant=i
-		if i.username==admin_name:
-			Admin=i
-	if participant==None:
-		return "Participant doesn't exist at all"
-	if Admin==None:
-		return "You are not there at all"
-	Group=None
-	for i in groups:
-		if group_name==i.group_name:
-			Group=i
-			break
-	if Group==None:
+	a=add_participants_to_grp(group_name,admin_name,participant_name)
+	if a==-1:
 		return group_name+" doesn't exist"
-	admin_found=False
-	for i in Group.admins:
-		if i==Admin.username:
-			admin_found=True
-			break
-	if not admin_found:
+	elif a==1:
+		return participant_name+" is already there in "+group_name
+	elif a==2:
+		return "Successfully added "+participant_name+" to "+group_name
+	else:
 		return "You are not an admin in "+group_name
-	for i in Group.members:
-		if(i==participant.username):
-			return participant_name+" is already there in "+group_name
-	for i in Group.admins:
-		if(i==participant.username):
-			return participant_name+" is already there in "+group_name
-	Group.members.append(participant_name)
-	return "Successfully added "+participant_name+" to "+group_name
+#completed
 
 
+#completed
 def remove_member(group_name,participant_name: str,admin_name:str):
-	Group=None
-	for i in groups:
-		if i.group_name==group_name:
-			Group=i
-			break
-	if Group==None:
+	a=delete_participants_from_grp(group_name,admin_name,participant_name)
+	if a==-1:
 		return group_name+" doesn't exist"
-	if admin_name not in Group.admins:
+	elif a==1:
+		return "Successfully removed "+participant_name+" from "+group_name
+	elif a==2:
+		return participant_name+" is not there in "+group_name
+	else:
 		return "You are not an admin in "+group_name
-	if participant_name not in Group.members:
-		return "This participant is not there in "+group_name
-	Group.members.remove(participant_name)
-	return "Successfully removed "+participant_name+" from "+group_name
-
+#completed
 
 def receive():
 	"""
@@ -186,14 +139,23 @@ def receive():
 		while True:
 			if a==1:
 				print(username+" joined back")
-				send_to(client_socket,'%CONNECT%',username)
+				participant=None
+				for i in participants:
+					if i.username==username:
+						i.client_socket=client_socket
+						participant=i
+						break
+				send(username, '-- Connected to server!')
+				send(username,'%CONNECT%')
 				thread = threading.Thread(target=handle, args=(participant,))
 				thread.start()
 				break
 			elif a==0:
 				print("New participant: "+username)
-				send_to(client_socket, '-- Connected to server!',username)
-				send_to(client_socket,'%CONNECT%')
+				new_participant=Participant(username,client_socket)
+				participants.append(new_participant)
+				send(username, '-- Connected to server!')
+				send(username,'%CONNECT%')
 				thread = threading.Thread(target=handle, args=(new_participant,))
 				thread.start()
 				break
@@ -209,7 +171,6 @@ if __name__ == '__main__':
 	server.bind(SERVER_ADDRESS)
 	server.listen()
 	participants = []
-	groups=[]
 	print('Server is listening... ')
 	open_database()
 	receive()
