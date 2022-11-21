@@ -11,17 +11,21 @@ def open_database():
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    name_Database   = "Fastchat"
-    sqlCreateDatabase = "CREATE DATABASE "+name_Database+";"
-    myNewDB="poiuy"
-    sqlCreateDatabase =f"SELECT 'CREATE DATABASE {myNewDB}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{myNewDB}')"
-    cursor.execute(sqlCreateDatabase)
+    name_Database   = "fastchat"
+    query=f"""SELECT datname FROM pg_database WHERE datname='{name_Database}';"""
+    cursor.execute(query)
+    result=cursor.fetchall()
+    print(result)
+    if result==[]:
+        sqlCreateDatabase = f"""CREATE DATABASE {name_Database};"""
+        cursor.execute(sqlCreateDatabase)
     conn.commit()
     print("Database created successfully........")
 
 # Sign in and Sign Up
 def sign_in_up(name,passw):
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
@@ -58,6 +62,7 @@ IS_ONLINE, EXTRA) VALUES ('{name}', '{passw}', {is_online},{number}) ON CONFLICT
 # Group Creation
 def group(groupname,admin):
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
@@ -69,7 +74,6 @@ def group(groupname,admin):
    GRPNAME TEXT NOT NULL,
    ADMIN TEXT NOT NULL,
    Participants TEXT NOT NULL,
-   time_stamp TIMESTAMP,
    CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants)  
    )'''
     cursor.execute(sql)
@@ -82,6 +86,7 @@ def group(groupname,admin):
 # Add participants to the group
 def add_participants_to_grp(grpname,admin,new_participant):
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
@@ -112,6 +117,7 @@ def add_participants_to_grp(grpname,admin,new_participant):
 # Delete participants from the group
 def delete_participants_from_grp(grpname,admin,member):
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
@@ -142,6 +148,7 @@ def delete_participants_from_grp(grpname,admin,member):
 # When user becomes offline bool is_online becomes 0
 def exit_user(username):
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
@@ -156,6 +163,7 @@ def exit_user(username):
 # stores msg
 def msg_store(username,msg,is_image):
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
@@ -186,6 +194,7 @@ def msg_store(username,msg,is_image):
 # delete msgs if user comes online after sending it to the user
 def msg_delete(username):
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
@@ -205,6 +214,7 @@ def msg_delete(username):
 # deletion of msgs after 120 seconds
 def deletion_of_old_msgs():
     conn = psycopg2.connect(
+    database="fastchat",
     user='postgres',
     password='postgres',
     host='localhost',
