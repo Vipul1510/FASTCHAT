@@ -22,7 +22,7 @@ publicKeyReloaded = rsa.PublicKey.load_pkcs1(C.read().encode())
 # Import private key in PKCS#1 format, PEM encoded 
 privateKeyReloaded = rsa.PrivateKey.load_pkcs1(D.read().encode()) 
 
-plaintext = "jiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii".encode('utf8')
+plaintext = "hii".encode('utf8')
 print("Plaintext: ", plaintext)
 
 ciphertext = rsa.encrypt(plaintext, publicKey)
