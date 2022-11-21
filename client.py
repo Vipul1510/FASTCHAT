@@ -7,6 +7,9 @@ import colorama
 from colorama import Fore
 from sa import *
 import os
+import hashlib
+import rsa
+import csv
 
 SERVER_ADDRESS = ('localhost', 7889)
 # SERVER_ADDRESS1 = ('127.0.0.1', 15661)
@@ -47,7 +50,7 @@ def handle_server_instruction(message):
 		Send(client_socket,username)
 	
 	elif message == '%PASS%':
-		Send(client_socket,password)
+		Send(client_socket,hashlib.sha256(password.encode(ENCODING)).hexdigest())
 
 	elif message=='%CONNECT%':
 		threading.Thread(target=write).start()
@@ -75,7 +78,7 @@ def handle_server_instruction(message):
 	
 	elif message == '%TRYAGAIN%':
 		password2=input(Fore.RED+'TRYAGAIN\n'+Fore.GREEN+"Password: "+Fore.WHITE)
-		Send(client_socket,password2)
+		Send(client_socket,hashlib.sha256(password2.encode(ENCODING)).hexdigest())
 	
 	elif message == '%QUIT%':
 		print(Fore.RED+'Exiting...')
@@ -95,6 +98,8 @@ def handle_server_instruction(message):
 		Send(client_socket,username_frnd)
 		Send(client_socket,grp_name)
 		threading.Thread(target=write).start()
+	elif message=="%GET OUT%":
+		return 0
 	else:
 		print(Fore.WHITE+"Received unknown instruction "+message+" from server\n"+Fore.RED+"$ ")
 
@@ -106,11 +111,14 @@ def receive():
 		try:
 			message = client_socket.recv(1024).decode(ENCODING)
 			if message.startswith('%'):
-				handle_server_instruction(str(message))
+				if handle_server_instruction(str(message))==0:
+					return
 			else:
+				if message=='-- Connected to server!':
+					publicKey, privateKey = rsa.newkeys(1024)
 				msg=message.split(":",1)
 				if z==0:
-					print("hi")
+					aa=1
 					#print(Fore.WHITE+msg[0]+": "+decrypt(msg[1],privatekey))
 				else:
 					print(Fore.WHITE+message+Fore.RED+"\n$ ",end='')

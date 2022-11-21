@@ -11,9 +11,11 @@ SERVER_ADDRESS = ('localhost', 7889)
 
 
 class Participant:
-	def __init__(self, username: str,client_socket: socket):
+	def __init__(self, username: str,client_socket: socket,thread):
 		self.username = username
 		self.client_socket = client_socket
+		self.thread=thread
+		#self.publickey=publickey
 
 
 def send_to(participant_socket, message: str,username: str):
@@ -27,7 +29,7 @@ def send_to(participant_socket, message: str,username: str):
 def send(participant_name:str,message:str):
 	for i in participants:
 		if i.username==participant_name:
-			send_to(i,message)
+			send_to(i.client_socket,message,i.username)
 
 
 def receive_from(participant, encod_type:str =ENCODING, size: int = 1024):
@@ -40,47 +42,49 @@ def receive_from(participant, encod_type:str =ENCODING, size: int = 1024):
 def handle_command(participant, command):
 	print("Command by "+participant.username+": "+command)
 	if command=="/Send":
-		send_to(participant,'%DRT_MSG%')
+		send(participant.username,'%DRT_MSG%')
 		username = receive_from(participant)
 		message=receive_from(participant)
 		send(username,participant.username+": "+message)
 	elif command == '/Exit':
-		send_to(participant, '%QUIT%')
+		send(participant.username, '%QUIT%')
 		exit_user(participant.username)
+		participant.thread=None
 		participant.client_socket.close()
+
 	# Admin commands
 	elif command=='/Creategrp':
-		send_to(participant, '%CREATEGROUP%')
+		send(participant.username, '%CREATEGROUP%')
 		grp_name=receive_from(participant)
-		a=group(grp_name,participant.username)
+		a=group(grp_name,participant.username,)
 		if a==1:
-			send_to(participant, 'Successfully created group '+grp_name)
+			send(participant.username, 'Successfully created group '+grp_name)
 		else:
-			send_to(participant, grp_name+' already exists')
+			send(participant.username, grp_name+' already exists')
 	elif command=='/Addmember':
 		admin_name=participant.username
-		send_to(participant,'%ADDMEMBER%')
+		send(participant.username,'%ADDMEMBER%')
 		groupname=receive_from(participant)
 		membername=receive_from(participant)
 		a=add_member(groupname,membername,admin_name)
-		send_to(participant,a)
+		send(participant.username,a)
 	elif command=='/Sendgrp':
-		send_to(participant,'%SENDGRP%')
+		send(participant.username,'%SENDGRP%')
 		group_name=receive_from(participant)
 		message=receive_from(participant)
 		a=send_group(group_name,message,participant.username)
-		send_to(participant,a)
+		send(participant.username,a)
 	elif command == '/kick':
-		send_to(participant,"%REMOVE%")
+		send(participant.username,"%REMOVE%")
 		user=receive_from(participant)
 		grp_name=receive_from(participant)
-		send_to(participant,remove_member(grp_name,user,participant.username))
+		send(participant.username,remove_member(grp_name,user,participant.username))
 	else:
-		send_to(participant, '-- Invalid command')
+		send(participant.username, '-- Invalid command')
 
 
 def handle(participant: Participant):
-	while True:
+	while participant.thread!=None:
 		command = receive_from(participant)
 		if command.startswith('/'):
 			handle_command(participant, command)
@@ -92,7 +96,7 @@ def send_group(group_name,message:str,participant_name: str):
 		return "You are not there in "+group_name
 	for i in participants:
 		if i!=participant_name:
-			send_to(i,"["+group_name+"] "+participant_name+": "+message)
+			send_to(i.username,"["+group_name+"] "+participant_name+": "+message)
 	return "Sent message in "+group_name
 #completed
 
@@ -136,7 +140,11 @@ def receive():
 		password = client_socket.recv(1024).decode(ENCODING)
 		###############
 		a=sign_in_up(username,password)
-		while True:
+		for i in range(4):
+			if i==3:
+				client_socket.send('%GET OUT%'.encode(ENCODING))
+				break
+			print("while loop",a)
 			if a==1:
 				print(username+" joined back")
 				participant=None
@@ -145,24 +153,25 @@ def receive():
 						i.client_socket=client_socket
 						participant=i
 						break
-				send(username, '-- Connected to server!')
+				send(username, 'Thanks for coming back!')
 				send(username,'%CONNECT%')
-				thread = threading.Thread(target=handle, args=(participant,))
-				thread.start()
+				participant.thread = threading.Thread(target=handle, args=(participant,))
+				participant.thread.start()
 				break
 			elif a==0:
 				print("New participant: "+username)
-				new_participant=Participant(username,client_socket)
+				new_participant=Participant(username,client_socket,None)
 				participants.append(new_participant)
 				send(username, '-- Connected to server!')
 				send(username,'%CONNECT%')
-				thread = threading.Thread(target=handle, args=(new_participant,))
-				thread.start()
+				new_participant.thread = threading.Thread(target=handle, args=(new_participant,))
+				new_participant.thread.start()
 				break
 			elif a==-1:
 				print('Connection attempt with existing username: '+username)
 				client_socket.send('%TRYAGAIN%'.encode(ENCODING))
 				password2 = client_socket.recv(1024).decode(ENCODING)
+				print(password2)
 				a=sign_in_up(username,password2)
 
 
