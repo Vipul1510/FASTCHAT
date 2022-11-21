@@ -70,17 +70,24 @@ def group(groupname,admin):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
+    sql=f'''SELECT grpname FROM grp_modified WHERE GRPNAME='{groupname}';'''
+    cursor.execute(sql)
+    result=cursor.fetchall()
+    if result==None:
+        sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
    GRPNAME TEXT NOT NULL,
    ADMIN TEXT NOT NULL,
    Participants TEXT NOT NULL,
    CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants)  
    )'''
-    cursor.execute(sql)
-    conn.commit
-    insert_stmt1 = "INSERT INTO grp_modified (GRPNAME, ADMIN,Participants) VALUES (%s, %s,%s)ON CONFLICT (GRPNAME,ADMIN,Participants) DO NOTHING;"
-    data = [(groupname,admin,admin)]
-    cursor.executemany(insert_stmt1, data)
+        cursor.execute(sql)
+        conn.commit
+        insert_stmt1 = "INSERT INTO grp_modified (GRPNAME, ADMIN,Participants) VALUES (%s, %s,%s)ON CONFLICT (GRPNAME,ADMIN,Participants) DO NOTHING;"
+        data = [(groupname,admin,admin)]
+        cursor.executemany(insert_stmt1, data)
+        return 1
+    else:
+        return -1
 
 
 # Add participants to the group
