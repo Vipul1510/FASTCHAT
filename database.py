@@ -75,11 +75,11 @@ def group(groupname,admin):
     result=cursor.fetchall()
     if result==None:
         sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
-   GRPNAME TEXT NOT NULL,
-   ADMIN TEXT NOT NULL,
-   Participants TEXT NOT NULL,
-   CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants)  
-   )'''
+        GRPNAME TEXT NOT NULL,
+        ADMIN TEXT NOT NULL,
+        Participants TEXT NOT NULL,
+        CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants)  
+        )'''
         cursor.execute(sql)
         conn.commit
         insert_stmt1 = "INSERT INTO grp_modified (GRPNAME, ADMIN,Participants) VALUES (%s, %s,%s)ON CONFLICT (GRPNAME,ADMIN,Participants) DO NOTHING;"
@@ -215,6 +215,24 @@ def msg_delete(username):
     sql = f"""DELETE from msg_stack WHERE TO_name='{username}'"""
     cursor.execute(sql)
     conn.commit
+    return result
+
+# returns all the members in the group
+def all_members(groupname):
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql=f'''SELECT Participants FROM grp_modified WHERE GRPNAME='{groupname}';'''
+    cursor.execute(sql)
+    result=cursor.fetchall()
+    if result==None:
+        return []
     return result
 
 
