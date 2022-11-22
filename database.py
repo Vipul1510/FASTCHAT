@@ -136,7 +136,14 @@ def add_participants_to_grp(grpname,admin,new_participant,publickey):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-
+    sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
+        GRPNAME TEXT NOT NULL,
+        ADMIN TEXT NOT NULL,
+        Participants TEXT NOT NULL,
+        PublicKey TEXT NOT NULL,
+        CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants,PublicKey)  
+        )'''
+    cursor.execute(sql)
     sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}';"
     cursor.execute(sql134)
     result = cursor.fetchone()
@@ -277,7 +284,7 @@ def msg_delete(username):
     return result
 
 # returns all the members in the group
-def all_members(groupname):
+def all_members(groupname,name):
     conn = psycopg2.connect(
     database="fastchat",
     user='postgres',
@@ -287,10 +294,16 @@ def all_members(groupname):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql=f'''SELECT Participants AND PublicKey FROM grp_modified WHERE GRPNAME='{groupname}';'''
+    sql=f'''SELECT * FROM grp_modified WHERE GRPNAME='{groupname}' AND Participants='{name}';'''
     cursor.execute(sql)
     result=cursor.fetchall()
-    if result==None:
+    print(result)
+    if result==[]:
+        return []
+    sql=f'''SELECT Participants, PublicKey FROM grp_modified WHERE GRPNAME='{groupname}';'''
+    cursor.execute(sql)
+    result=cursor.fetchall()
+    if result==[]:
         return []
     return result
 
