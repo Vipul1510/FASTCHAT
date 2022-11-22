@@ -8,6 +8,11 @@ import rsa
 import csv
 
 SERVER_ADDRESS = ('localhost', 7880)
+SERVER_ADDRESS1 = ('localhost', 7881)
+SERVER_ADDRESS2 = ('localhost', 7882)
+SERVER_ADDRESS3 = ('localhost', 7883)
+SERVER_ADDRESS4 = ('localhost', 7884)
+SERVER_ADDRESS5 = ('localhost', 7885)
 
 def Receive(decode_type="", size: int = 1024):
 	if decode_type=="":
@@ -24,8 +29,6 @@ def Send(message :str,encod_type:str=""):
 
 
 def Send_msg(message :str,pubkey2 :str):
-	#client_socket.send(("/PUBKEY "+username).encode())
-	#pubkey2=client_socket.recv(1024).decode()
 	publicKeyReloaded = rsa.PublicKey.load_pkcs1(pubkey2.encode()) 
 	client_socket.send(rsa.encrypt(message.encode(),publicKeyReloaded))
 
@@ -146,7 +149,6 @@ def receive():
 								privatekey = rsa.PrivateKey.load_pkcs1(y.encode())
 							i=i+1
 				else:
-					#message=rsa.decrypt(message,privatekey)
 					print(Fore.WHITE+message.decode()+Fore.RED+"\n$ ",end='')
 		except OSError:
 			print('An error occurred!')
@@ -158,7 +160,7 @@ def write():
 	"""Hold open input for sending messages (runs in separate thread)"""
 	while True:
 		message=input(Fore.RED+"$ ")
-		if message in commands or "/PUBKEY " in message:
+		if message in commands:
 			Send(message)
 			break   
 
@@ -169,7 +171,14 @@ if __name__ == '__main__':
 		password = input(Fore.GREEN+"Password: "+Fore.WHITE)
 		publickey=1
 		privatekey=1
-		global client_socket
+		global client_sockets
+		client_sockets=[]
+		client_sockets[0].connect(SERVER_ADDRESS)
+		client_sockets[1].connect(SERVER_ADDRESS1)
+		client_sockets[2].connect(SERVER_ADDRESS2)
+		client_sockets[3].connect(SERVER_ADDRESS3)
+		client_sockets[4].connect(SERVER_ADDRESS4)
+		client_sockets[5].connect(SERVER_ADDRESS5)
 		client_socket=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		client_socket.connect(SERVER_ADDRESS)
 	except ConnectionRefusedError:

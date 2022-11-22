@@ -4,11 +4,27 @@ import threading
 import socket
 from database import *
 import time
-SERVER_ADDRESS = ('localhost', 7880)
+import sys
+SERVER_ADDRESS = ('localhost', sys.argv[1])
 
 
 class Participant:
+	"""
+	This class is used for storing data for each client like username and socket but not password
+	
+	:param username: user name of the client which is unique
+	:type username: string
+	:param client_socket: client socket to which server should communicate to the client
+	:type client_socket: socket
+	:param thread: receiving thread for requests sent by client
+	:type thread: Thread
+	:param publickey: RSA public key of client but saved as a string
+	:type publickey: string
+	"""
 	def __init__(self, username: str,client_socket,thread,publickey):
+		"""
+		Constructor method
+		"""
 		self.username = username
 		self.client_socket = client_socket
 		self.thread=thread
@@ -16,6 +32,16 @@ class Participant:
 
 
 def send_to(participant, message: str,encd_type):
+	"""
+	This function is used to send messages to client when we have participant object along with encrypting using utf-8 or without any encryption (already sha256 or rsa encrypted)
+	
+	:param participant: particpant object to which message is to be sent
+	:type participant: :class:`Participant`
+	:param message: message to be sent to client
+	:type message: string
+	:param encd_type: type of encodin(utf-8)
+	:type encd_type: string
+	"""
 	print("Sending message to "+participant.username)
 	if encd_type=="None":
 		participant.client_socket.send(message)
@@ -24,12 +50,25 @@ def send_to(participant, message: str,encd_type):
 
 
 def send(participant_name:str,message:str,encd_type=""):
+	"""
+	This function is used to send messages to client when we don't have object when we have only participant name, this function checks in the list of participants and finds the client socket and then sends a message.
+	
+	:param participant_name: name of the particpant to which message is to be sent
+	:type participant_name: string
+	:param message: message to be sent to client
+	:type message: string
+	:param encd_type: type of encodin(utf-8)
+	:type encd_type: string
+	"""
 	for i in participants:
 		if i.username==participant_name:
 			send_to(i,message,encd_type)
 
 
 def receive_from(participant, encod_type:str ="", size: int = 1024):
+	"""
+	This function is used to receive a message only once from a client when we have object and to decrypt using utf-8 or just receiving without decryption
+	"""
 	if encod_type=="None":
 		return participant.client_socket.recv(size)
 	else:
@@ -37,11 +76,15 @@ def receive_from(participant, encod_type:str ="", size: int = 1024):
 
 
 def receive_from2(participant_name,encod_type:str="",size:int=1024):
+	"""
+	This function is used to receive a message only once from a client when we have participant name and it calls another function receive_from by passing socket
+	"""
 	for i in participants:
 		if i.username==participant_name:
 			return receive_from(i,encod_type,size)
 
 def handle_command(participant, command):
+
 	print("Command by "+participant.username+": "+command)
 	if command=="/Send":
 		send(participant.username,'%DRT_MSG%')
@@ -86,12 +129,6 @@ def handle_command(participant, command):
 		user=receive_from(participant)
 		grp_name=receive_from(participant)
 		send(participant.username,remove_member(grp_name,user,participant.username))
-	elif "/PUBKEY" in command:
-		username=command.split(" ")[1]
-		for i in participants:
-			if i.username==username:
-				send(participant.username,i.publickey)
-				break
 	else:
 		send(participant.username, '-- Invalid command')
 
