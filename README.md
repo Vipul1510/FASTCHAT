@@ -72,3 +72,25 @@ run first 7 lines on different terminal
 7. python3 client.py 
 USERNAME: XYZ
 PASSWORD: ABC
+## COMMANDS
+/Send : Send message to another user
+
+/Creategrp : Create a group
+
+/Addmember : Add a user in a group
+
+/Sendgrp : Send message on a group
+
+/kick : Remove participant from a group
+
+/Leavegrp : Leave a group
+
+/Changeadmin : Change the admin of a group
+
+/Sendimg : Send an image to another user
+
+/Deletegrp : Delete a group
+
+/Help : to see all the commands
+
+/Exit : to exit from this terminal
