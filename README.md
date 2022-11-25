@@ -64,11 +64,11 @@
 # Example of how to run code:
 run first 7 lines on different terminal
 1. python3 mainserver.py
-2. python3 server.py 7881
-3. python3 server.py 7882
-4. python3 server.py 7883
-5. python3 server.py 7884
-6. python3 server.py 7885
+2. python3 server.py 7681
+3. python3 server.py 7682
+4. python3 server.py 7683
+5. python3 server.py 7684
+6. python3 server.py 7685
 7. python3 client.py 
 USERNAME: XYZ
 PASSWORD: ABC
