@@ -1,9 +1,10 @@
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+import time
 
-# It creates a new database if not exists
+# It creates a new database 
 def open_database():
-    """This function creates database if not exists
+    """This function creates database and all required tables. This function is called when main server is initiated
     """
     # Credentials to login into postgresql
     conn = psycopg2.connect(
@@ -23,6 +24,47 @@ def open_database():
         sqlCreateDatabase = f"""CREATE DATABASE {name_Database};"""
         cursor.execute(sqlCreateDatabase)
     conn.commit()
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql = "DROP TABLE IF EXISTS Clients ;"
+    cursor.execute(sql)
+    sql = "DROP TABLE IF EXISTS grp_modified;"
+    cursor.execute(sql)
+    sql = "DROP TABLE IF EXISTS msg_stack ;"
+    cursor.execute(sql)
+    # Creating table clients which keeps all details of clients including whether user's status of online or offline
+    sql = '''CREATE TABLE IF NOT EXISTS Clients(
+   NAME TEXT NOT NULL PRIMARY KEY,
+   PASSWORD TEXT NOT NULL,
+   IS_ONLINE FLOAT,
+   PUBLIC_KEY TEXT   
+    )'''
+    cursor.execute(sql)
+    # Creates table grp_modified which stores the groupname,admin name and participants
+    sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
+        GRPNAME TEXT NOT NULL,
+        ADMIN TEXT NOT NULL,
+        Participants TEXT NOT NULL,
+        PublicKey TEXT NOT NULL,
+        CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants,PublicKey)  
+        )'''
+    cursor.execute(sql)
+    sql = '''CREATE TABLE IF NOT EXISTS msg_stack(
+   TO_name TEXT NOT NULL,
+   MSG bytea NOT NULL,
+   Is_image INT,
+   time_stamp INT,
+   CONSTRAINT pk_msg_stack PRIMARY KEY(TO_name,MSG,time_stamp)  
+   )'''
+    cursor.execute(sql)
+    conn.commit()
     print("Database initiated........")
 
 # Sign in and Sign Up 
@@ -41,14 +83,6 @@ def sign_in_up(name,passw):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    # Creating table clients which keeps all details of clients including whether user's status of online or offline
-    sql = '''CREATE TABLE IF NOT EXISTS Clients(
-   NAME TEXT NOT NULL PRIMARY KEY,
-   PASSWORD TEXT NOT NULL,
-   IS_ONLINE FLOAT,
-   PUBLIC_KEY TEXT   
-    )'''
-    cursor.execute(sql)
     # check whether name is already present or not
     sql134 = 'SELECT * FROM Clients WHERE name=%s;'
     cursor.execute(sql134,[name])
@@ -57,6 +91,9 @@ def sign_in_up(name,passw):
     # If name is already present (i.e old user) then checks encrypted password matches with encrypted input password  
     if result!=None:
         if passw==result[1]:
+            insert_stmt2 = f"""UPDATE Clients SET IS_ONLINE=1 WHERE name='{name}';"""
+            cursor.execute(insert_stmt2)
+            conn.commit()
             return 1
         else:
             return -1
@@ -111,7 +148,6 @@ def get_public_key(name):
     else:
         return -1               # If name not exists return -1
 
-
 # Group Creation
 def group(groupname,admin,publickey):
     """This function adds groupname, admin name and publickey of admin in table grp_modified
@@ -129,16 +165,6 @@ def group(groupname,admin,publickey):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    # Creates table grp_modified which stores the groupname,admin name and participants
-    sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
-        GRPNAME TEXT NOT NULL,
-        ADMIN TEXT NOT NULL,
-        Participants TEXT NOT NULL,
-        PublicKey TEXT NOT NULL,
-        CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants,PublicKey)  
-        )'''
-    cursor.execute(sql)
-    conn.commit
     # Checks if already groupname is existing or not
     sql=f'''SELECT grpname FROM grp_modified WHERE GRPNAME='{groupname}';'''
     cursor.execute(sql)
@@ -151,7 +177,6 @@ def group(groupname,admin,publickey):
         return 1
     else:
         return -1
-
 
 # Add participants to the group
 def add_participants_to_grp(grpname,admin,new_participant,publickey):
@@ -171,21 +196,13 @@ def add_participants_to_grp(grpname,admin,new_participant,publickey):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql = '''CREATE TABLE IF NOT EXISTS grp_modified(
-        GRPNAME TEXT NOT NULL,
-        ADMIN TEXT NOT NULL,
-        Participants TEXT NOT NULL,
-        PublicKey TEXT NOT NULL,
-        CONSTRAINT pk_grp_modified PRIMARY KEY(GRPNAME,ADMIN,Participants,PublicKey)  
-        )'''
-    cursor.execute(sql)
     sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}';"
     cursor.execute(sql134)
     result = cursor.fetchone()
     if result==None:
         return -1      # There is no group having group name as grpname 
     elif result[1]!=admin:
-        return result[1]       # user is not admin type=str
+        return result[1]      # user is not admin type=str
     sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}' AND Participants='{new_participant}';"
     cursor.execute(sql134)
     result = cursor.fetchone()
@@ -196,7 +213,6 @@ def add_participants_to_grp(grpname,admin,new_participant,publickey):
         cursor.execute(insert_stmt1)
         conn.commit
         return 2           # Done successfully 
-
 
 # Delete participants from the group
 def delete_participants_from_grp(grpname,admin,member):
@@ -263,7 +279,71 @@ def delete_group(grpname,admin):
         conn.commit
         return 1         # Deleted successfully  
 
+# When user wants to leave a group
+def leave_grp(grpname,name):
+    """This function helps user to leave a specific group.
 
+    :param grpname: It denotes the group which user wants to leave
+    :param name: It denotes the username of user
+    """
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}' AND Participants='{name}';"
+    cursor.execute(sql134)
+    result = cursor.fetchall()
+    if result==[]:
+        return -1      # There is no group having group name as grpname 
+    elif result[0][1]==name:
+        return 2       # user is admin 
+    elif result!=None:
+        insert_stmt1 = f"DELETE FROM grp_modified WHERE GRPNAME='{grpname}' AND Participants='{name}';"
+        cursor.execute(insert_stmt1)
+        conn.commit
+        return 1 
+
+# When admin wants to change the post of admin
+def change_admin(grpname,admin,new_admin):
+    """This function helps the admin to change another user to to admin
+
+    :param grpname: It denotes the group name for which admin to be changed
+    :param admin: It denotes the username of existing admin
+    :param new_admin: It denotes the username of new admin
+    """
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}' AND Participants='{admin}';"
+    cursor.execute(sql134)
+    cursor.execute(sql134)
+    result = cursor.fetchall()
+    if result==[]:
+        return -1      # There is no group having group name as grpname 
+    elif result[0][1]==admin:
+        sql134 = f"SELECT * FROM grp_modified WHERE GRPNAME='{grpname}' AND Participants='{new_admin}';"
+        cursor.execute(sql134)
+        result = cursor.fetchall()
+        if result==[]:
+            return -2
+        else:
+            stmt = f"""UPDATE grp_modified SET admin='{new_admin}' WHERE admin='{admin}' AND grpname='{grpname}';"""
+            cursor.execute(stmt)
+            return 1       # Done successfully
+    else:
+        return -3     # user is part of grp but not admin
+    
 # When user becomes offline bool is_online becomes 0
 def exit_user(username):
     """This function changes online status of user to offline while leaving
@@ -301,29 +381,14 @@ def msg_store(username,msg,is_image):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql = '''CREATE TABLE IF NOT EXISTS msg_stack(
-   TO_name TEXT NOT NULL,
-   MSG TEXT NOT NULL,
-   Is_image INT,
-   time_stamp TIMESTAMP,
-   CONSTRAINT pk_msg_stack PRIMARY KEY(TO_name,MSG,time_stamp)  
-   )'''
-    cursor.execute(sql)
-    conn.commit
-    from datetime import datetime  
-    timestamp = 1625309472.357246 
-    date_time = datetime.fromtimestamp(timestamp)
-    now  = datetime.now() 
-    str_date_time = date_time.strftime("%Y-%D-%M %H:%M:%S")
     insert_stmt1 = "INSERT INTO msg_stack (TO_name,MSG,Is_image,time_stamp) VALUES ( %s,%s,%s,%s)ON CONFLICT (TO_name,MSG,time_stamp) DO NOTHING;"
-    data = [(username,msg,is_image,now)]
+    data = [(username,msg,is_image,time.time()-19800)]
     cursor.executemany(insert_stmt1, data)
     conn.commit
 
-
-# delete msgs if user comes online after sending it to the user
+# delete msg if user comes online after sending it to the user
 def msg_delete(username):
-    """This fuction returns all messages of a user when he/she comes online and delete then from the table
+    """This fuction return one message of a user when he/she comes online and delete then from the table
 
     :param: It denotes the username who came online
     """
@@ -336,13 +401,34 @@ def msg_delete(username):
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql = f"""SELECT * from msg_stack WHERE TO_name='{username}'"""
+    sql = f"""SELECT * from msg_stack WHERE TO_name='{username}';"""
     cursor.execute(sql)
     result = cursor.fetchall()
-    sql = f"""DELETE from msg_stack WHERE TO_name='{username}'"""
+    sql = f"""DELETE from msg_stack WHERE TO_name='{username}' ;"""
     cursor.execute(sql)
     conn.commit
     return result
+
+# Returns number of undelivered msgs
+def no_old_msgs(username):
+    """This functions returns number of undelivered messages when the user comes onlne
+
+    :param username: It denotes the username of client
+    """
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql = f"""SELECT * from msg_stack WHERE TO_name='{username}';"""
+    cursor.execute(sql)
+    result = cursor.fetchall()
+    print(len(result),"#$% no of old messages")
+    return len(result)
 
 # returns all the members in the group
 def all_members(groupname,name):
@@ -364,7 +450,7 @@ def all_members(groupname,name):
     sql=f'''SELECT * FROM grp_modified WHERE GRPNAME='{groupname}' AND Participants='{name}';'''
     cursor.execute(sql)
     result=cursor.fetchall()
-    print(result)
+    #print(result)
     if result==[]:
         return []
     sql=f'''SELECT Participants, PublicKey FROM grp_modified WHERE GRPNAME='{groupname}';'''
@@ -374,8 +460,7 @@ def all_members(groupname,name):
         return []
     return result
 
-
-# deletion of msgs after 120 seconds
+# deletion of msgs after 30 seconds
 def deletion_of_old_msgs():
     """This function deletes all messages which are in database for more than 120 seconds time
     """
@@ -388,17 +473,32 @@ def deletion_of_old_msgs():
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cursor          = conn.cursor()
-    sql = f"""SELECT * from msg_stack"""
+    sql=f"""DELETE from msg_stack WHERE time_stamp <= '{int(time.time()-19920)}'"""
     cursor.execute(sql)
+
+# returns online / offline status of user
+def is_online(name):
+    """This function returns the online/offline status of the user
+
+    :param name: It denotes the username of client
+    """
+    conn = psycopg2.connect(
+    database="fastchat",
+    user='postgres',
+    password='postgres',
+    host='localhost',
+    port= '5432'
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor          = conn.cursor()
+    sql134 = 'SELECT * FROM Clients WHERE name=%s;'
+    cursor.execute(sql134,[name])
     result = cursor.fetchall()
-    for i in result:
-        print(i[3],type(i[3]))
-        from datetime import datetime     
-        now  = datetime.now() 
-        duration = now - i[3]  
-        duration_in_s = duration.total_seconds() 
-        print(duration_in_s)
-        # Deletes messages if they are shared before 2 minutes
-        if duration_in_s>120:
-            sql = f"""DELETE from msg_stack WHERE TO_name='{i[0]}' AND MSG='{i[1]}' """
-            cursor.execute(sql)
+    if result==[]:
+        return 2
+    else:
+        return result[0][2]
+
+
+
+
