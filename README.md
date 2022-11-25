@@ -33,12 +33,26 @@
 	- When user join first time a public and private key is generated and saved in a username.csv file in the device and public key on server.
 	- When user joins back then existing private and public keys are used from the file.
 	- Whenever user-1 wants to send a message to user-2 then first user-1 asks public key of user-2 to server , then with that public key user-1 encrypts the message and sends to server then server sends that encrypted message to user-2 then user-2 decrpty the message using it's own private key . In this way E2E encryption is mentioned. 
+7. Multiple servers and load Balancing
+	- Added a mainserver and 5 normal servers of same kind.
+	- When client want to send a message it follows following steps:
+		- client interacts with mainserver to know which server has lower load
+		- mainserver sends the server number which has less load (If load is same then arbitary between them)
+		- client assigns it's work to that server
+	- Procedure to check which server has less load:
+		- Mainserver sends  a message (ping) to all 5 servers and get their replies
+		- The server with fastest reply has the less load
+8. Image sharing
+	- Implemented image sharing in the direct chats
+	- When user1 wants to send image then user1 has to give relative path to the image with respect to client.py
+	- Image is encrypted using AES key and iv
+	- User1 now sends Key (encrypted with rsa public key of user2), iv(encrypted with rsa public key of user2) and data(encrypted with key and iv) to server and server sends to user2
+	- User2 receives Key, iv, data. User2 decrypts Key and iv with it's own private key and then decrypt the data using key and iv.
+	- User2 sends data to file name image.png and that file will be created in the directory of file client.py
 ## TECHNOLOGY USED:
 1. SH256: To encrypt password and store it into database of server
 2. RSA: To ensure E2E encryption
 3. postgresql: To maintain database
 4. Python and socket library: To create servers and clients
-
-## PART TO BE DONE:
-1. Multiple servers
-2. Image sharing
+5. AES Encryption and Decryption
+ 
