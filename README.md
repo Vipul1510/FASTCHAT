@@ -72,6 +72,12 @@ run first 7 lines on different terminal
 7. python3 client.py 
 USERNAME: XYZ
 PASSWORD: ABC
+# Bash checking:
+1) Run checker.sh
+2) Run server.sh in a new terminal
+3) remove b.txt
+4) run plot.py
+
 ## COMMANDS
 /Send : Send message to another user
 
